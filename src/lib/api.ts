@@ -287,10 +287,7 @@ export async function settleDebt(
 ): Promise<void> {
   const allShares = await getGroupShares(groupId);
   const pendingShares = allShares.filter(
-    (s) =>
-      s.debtorId === debt.from &&
-      s.creditorId === debt.to &&
-      s.status === "pending",
+    (s) => s.debtorId === debt.from && s.status === "pending",
   );
 
   await Promise.all(

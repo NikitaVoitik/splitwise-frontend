@@ -16,6 +16,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
 function RegisterForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -114,13 +122,5 @@ function RegisterForm() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-export default function RegisterPage() {
-  return (
-    <Suspense>
-      <RegisterForm />
-    </Suspense>
   );
 }
