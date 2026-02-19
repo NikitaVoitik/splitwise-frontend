@@ -25,10 +25,10 @@ import { Badge } from "@/components/ui/badge";
 interface AddExpenseModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  groupId: number;
+  groupId: string;
   currency: string;
   members: User[];
-  currentUserId: number;
+  currentUserId: string;
 }
 
 export function AddExpenseModal({
@@ -41,8 +41,8 @@ export function AddExpenseModal({
 }: AddExpenseModalProps) {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [payerId, setPayerId] = useState(String(currentUserId));
-  const [splitAmong, setSplitAmong] = useState<number[]>(
+  const [payerId, setPayerId] = useState(currentUserId);
+  const [splitAmong, setSplitAmong] = useState<string[]>(
     members.map((m) => m.id),
   );
 
@@ -52,7 +52,7 @@ export function AddExpenseModal({
     mutationFn: () =>
       createExpense(
         groupId,
-        Number(payerId),
+        payerId,
         description,
         Number(amount),
         currency,
@@ -70,7 +70,7 @@ export function AddExpenseModal({
     },
   });
 
-  const toggleMember = (userId: number) => {
+  const toggleMember = (userId: string) => {
     setSplitAmong((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)

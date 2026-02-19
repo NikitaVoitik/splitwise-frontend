@@ -1,102 +1,226 @@
-import {
-  MOCK_USERS,
-  MOCK_GROUPS,
-  MOCK_GROUP_MEMBERS,
-  MOCK_EXPENSES,
-  MOCK_EXPENSE_SHARES,
-} from "./mock-data";
-import type { Expense, ExpenseShare, Debt, Balance, User, Group, GroupMember } from "./types";
+import type {
+  Expense,
+  ExpenseShare,
+  Debt,
+  Balance,
+  User,
+  Group,
+  GroupMember,
+} from "./types";
 import { calculateBalances, simplifyDebts } from "./ledger";
+import { TOKEN_STORAGE_KEY } from "./auth-context";
 
-const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// In-memory mutable state for mutations
-let users = [...MOCK_USERS];
-let groups = [...MOCK_GROUPS];
-let members = [...MOCK_GROUP_MEMBERS];
-let expenses = [...MOCK_EXPENSES];
-let shares = [...MOCK_EXPENSE_SHARES];
+// ── Helper ──────────────────────────────────────────────────────────────────
 
-let nextExpenseId = 100;
-let nextShareId = 100;
-let nextMemberId = 100;
-
-export async function getGroups(userId: number): Promise<Group[]> {
-  await delay();
-  const userGroupIds = members
-    .filter((m) => m.userId === userId)
-    .map((m) => m.groupId);
-  return groups.filter((g) => userGroupIds.includes(g.id));
+function authHeaders(): HeadersInit {
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem(TOKEN_STORAGE_KEY)
+      : null;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
-export async function getGroup(id: number): Promise<Group | undefined> {
-  await delay();
-  return groups.find((g) => g.id === id);
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { ...authHeaders(), ...init?.headers },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? res.statusText);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
-export async function getGroupExpenses(groupId: number): Promise<Expense[]> {
-  await delay();
-  return expenses
-    .filter((e) => e.groupId === groupId)
-    .sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime());
+// ── Backend response types ──────────────────────────────────────────────────
+
+interface BackendGroup {
+  id: string;
+  name: string;
+  type: string | null;
+  currency_code: string;
+  cover_image: string | null;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
 }
 
-export async function getGroupMembers(groupId: number): Promise<(GroupMember & { user: User })[]> {
-  await delay();
-  return members
-    .filter((m) => m.groupId === groupId)
-    .map((m) => ({
-      ...m,
-      user: users.find((u) => u.id === m.userId)!,
-    }))
-    .filter((m) => m.user);
+interface BackendMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  joined_at: string;
+  user_name: string | null;
+  user_email: string | null;
 }
 
-export async function getGroupShares(groupId: number): Promise<ExpenseShare[]> {
-  await delay();
-  const groupExpenseIds = expenses
-    .filter((e) => e.groupId === groupId)
-    .map((e) => e.id);
-  return shares.filter((s) => groupExpenseIds.includes(s.expenseId));
+interface BackendExpenseSplit {
+  id: string;
+  debtor_id: string;
+  creditor_id: string;
+  amount_owed: number;
+  percentage: number;
+  status: string;
 }
 
-export async function getGroupBalances(groupId: number): Promise<Balance[]> {
-  await delay();
-  const groupMembers = await getGroupMembers(groupId);
-  const groupShares = await getGroupShares(groupId);
-  const memberUsers = groupMembers.map((m) => m.user);
-  return calculateBalances(memberUsers, groupShares);
+interface BackendExpense {
+  id: string;
+  group_id: string;
+  payer_id: string;
+  description: string;
+  amount: number;
+  category: string | null;
+  date: string;
+  created_at: string;
+  splits: BackendExpenseSplit[];
 }
 
-export async function getGroupSettlements(groupId: number): Promise<Debt[]> {
-  await delay();
+interface BackendExpenseList {
+  expenses: BackendExpense[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// ── Mappers ─────────────────────────────────────────────────────────────────
+
+function mapGroup(bg: BackendGroup): Group {
+  return {
+    id: bg.id,
+    name: bg.name,
+    currency: bg.currency_code,
+  };
+}
+
+function mapMember(bm: BackendMember): GroupMember & { user: User } {
+  return {
+    id: bm.id,
+    userId: bm.user_id,
+    groupId: bm.group_id,
+    role: "member",
+    user: {
+      id: bm.user_id,
+      name: bm.user_name ?? "Unknown",
+      email: bm.user_email ?? "",
+    },
+  };
+}
+
+function mapExpense(be: BackendExpense, currency: string): Expense {
+  return {
+    id: be.id,
+    groupId: be.group_id,
+    createdBy: be.payer_id,
+    amount: Number(be.amount),
+    currency,
+    description: be.description,
+    expenseDate: be.date,
+  };
+}
+
+function mapExpenseShare(bs: BackendExpenseSplit, expenseId: string): ExpenseShare {
+  return {
+    id: bs.id,
+    expenseId,
+    debtorId: bs.debtor_id,
+    creditorId: bs.creditor_id,
+    amountOwed: Number(bs.amount_owed),
+    percentage: Number(bs.percentage),
+    status: bs.status as "pending" | "settled",
+  };
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+export async function getGroups(): Promise<Group[]> {
+  const data = await apiFetch<BackendGroup[]>("/groups");
+  return data.map(mapGroup);
+}
+
+export async function createGroup(name: string, currencyCode = "USD"): Promise<Group> {
+  const data = await apiFetch<BackendGroup>("/groups", {
+    method: "POST",
+    body: JSON.stringify({ name, currency_code: currencyCode }),
+  });
+  return mapGroup(data);
+}
+
+export async function getGroup(id: string): Promise<Group | undefined> {
+  try {
+    const data = await apiFetch<BackendGroup>(`/groups/${id}`);
+    return mapGroup(data);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getGroupExpenses(groupId: string, currency = "USD"): Promise<Expense[]> {
+  const data = await apiFetch<BackendExpenseList>(
+    `/groups/${groupId}/expenses?page=1&limit=50`,
+  );
+  return data.expenses.map((e) => mapExpense(e, currency));
+}
+
+export async function getGroupMembers(
+  groupId: string,
+): Promise<(GroupMember & { user: User })[]> {
+  const data = await apiFetch<BackendMember[]>(
+    `/groups/${groupId}/members`,
+  );
+  return data.map(mapMember);
+}
+
+export async function getGroupShares(groupId: string): Promise<ExpenseShare[]> {
+  const data = await apiFetch<BackendExpenseList>(
+    `/groups/${groupId}/expenses?page=1&limit=50`,
+  );
+  return data.expenses.flatMap((exp) =>
+    exp.splits.map((s) => mapExpenseShare(s, exp.id)),
+  );
+}
+
+export async function getGroupBalances(groupId: string): Promise<Balance[]> {
+  const [memberData, sharesData] = await Promise.all([
+    getGroupMembers(groupId),
+    getGroupShares(groupId),
+  ]);
+  const memberUsers = memberData.map((m) => m.user);
+  return calculateBalances(memberUsers, sharesData);
+}
+
+export async function getGroupSettlements(groupId: string): Promise<Debt[]> {
   const balances = await getGroupBalances(groupId);
   return simplifyDebts(balances);
 }
 
 export async function createExpense(
-  groupId: number,
-  createdBy: number,
+  groupId: string,
+  createdBy: string,
   description: string,
   amount: number,
   currency: string,
-  splitAmong: number[],
+  splitAmong: string[],
 ): Promise<Expense> {
-  await delay();
-  const expense: Expense = {
-    id: nextExpenseId++,
-    groupId,
-    createdBy,
-    description,
-    amount,
-    currency,
-    expenseDate: new Date().toISOString().split("T")[0],
-  };
-  expenses = [expense, ...expenses];
-
-  // Create equal-split shares
   const shareAmount = Math.floor((amount * 100) / splitAmong.length) / 100;
-  let remainder = Math.round(amount * 100) - Math.round(shareAmount * 100) * splitAmong.length;
+  let remainder =
+    Math.round(amount * 100) - Math.round(shareAmount * 100) * splitAmong.length;
+
+  const splits: Array<{
+    debtor_id: string;
+    creditor_id: string;
+    amount_owed: number;
+    percentage: number;
+  }> = [];
 
   for (const debtorId of splitAmong) {
     if (debtorId === createdBy) continue;
@@ -105,58 +229,57 @@ export async function createExpense(
       owed += 0.01;
       remainder--;
     }
-    shares.push({
-      id: nextShareId++,
-      expenseId: expense.id,
-      debtorId,
-      creditorId: createdBy,
-      amountOwed: owed,
+    splits.push({
+      debtor_id: debtorId,
+      creditor_id: createdBy,
+      amount_owed: owed,
       percentage: Math.round((1 / splitAmong.length) * 10000) / 100,
-      status: "pending",
     });
   }
 
-  return expense;
+  const data = await apiFetch<BackendExpense>(
+    `/groups/${groupId}/expenses`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        description,
+        amount,
+        payer_id: createdBy,
+        splits,
+      }),
+    },
+  );
+  return mapExpense(data, currency);
 }
 
-export async function settleDebt(groupId: number, debt: Debt): Promise<void> {
-  await delay();
-  // Create a settlement expense
-  const expense: Expense = {
-    id: nextExpenseId++,
-    groupId,
-    createdBy: debt.from,
-    description: `Settlement: ${users.find((u) => u.id === debt.from)?.name} → ${users.find((u) => u.id === debt.to)?.name}`,
-    amount: debt.amount,
-    currency: debt.currency,
-    expenseDate: new Date().toISOString().split("T")[0],
-  };
-  expenses = [expense, ...expenses];
-
-  // Mark all pending shares between these two users as settled
-  const groupExpenseIds = expenses
-    .filter((e) => e.groupId === groupId)
-    .map((e) => e.id);
-
-  shares = shares.map((s) => {
-    if (
-      groupExpenseIds.includes(s.expenseId) &&
+export async function settleDebt(
+  groupId: string,
+  debt: Debt,
+): Promise<void> {
+  const allShares = await getGroupShares(groupId);
+  const pendingShares = allShares.filter(
+    (s) =>
       s.debtorId === debt.from &&
       s.creditorId === debt.to &&
-      s.status === "pending"
-    ) {
-      return { ...s, status: "settled" as const };
-    }
-    return s;
-  });
+      s.status === "pending",
+  );
+
+  await Promise.all(
+    pendingShares.map((share) =>
+      apiFetch<unknown>(
+        `/groups/${groupId}/debts/${share.id}/settle`,
+        { method: "POST" },
+      ),
+    ),
+  );
 }
 
-export async function removeUserFromGroup(groupId: number, userId: number): Promise<void> {
-  await delay();
-  members = members.filter((m) => !(m.groupId === groupId && m.userId === userId));
-}
-
-export async function getUserById(id: number): Promise<User | undefined> {
-  await delay(100);
-  return users.find((u) => u.id === id);
+export async function removeUserFromGroup(
+  groupId: string,
+  userId: string,
+): Promise<void> {
+  await apiFetch<void>(
+    `/groups/${groupId}/members/${userId}`,
+    { method: "DELETE" },
+  );
 }

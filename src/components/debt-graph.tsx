@@ -13,7 +13,7 @@ interface DebtGraphProps {
 }
 
 export function DebtGraph({ users, debts, balances }: DebtGraphProps) {
-  const [hoveredUser, setHoveredUser] = useState<number | null>(null);
+  const [hoveredUser, setHoveredUser] = useState<string | null>(null);
 
   const width = 400;
   const height = 400;

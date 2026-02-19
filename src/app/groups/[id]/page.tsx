@@ -24,8 +24,9 @@ import { formatCurrency } from "@/lib/ledger";
 import { useAuth } from "@/lib/auth-context";
 import type { User, Debt } from "@/lib/types";
 
-function GroupDetailContent({ id }: { id: number }) {
+function GroupDetailContent({ id }: { id: string }) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
 
@@ -65,7 +66,7 @@ function GroupDetailContent({ id }: { id: number }) {
   });
 
   const members = memberData?.map((m) => m.user) ?? [];
-  const memberMap = new Map<number, User>(members.map((u) => [u.id, u]));
+  const memberMap = new Map<string, User>(members.map((u) => [u.id, u]));
 
   if (!group) {
     return (
@@ -108,9 +109,11 @@ function GroupDetailContent({ id }: { id: number }) {
                 navigator.clipboard.writeText(
                   `${window.location.origin}/register?inviteGroupId=${id}`,
                 );
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
               }}
             >
-              Invite
+              {copied ? "Copied!" : "Invite"}
             </Button>
             <Button
               size="sm"
@@ -218,8 +221,7 @@ function GroupDetailContent({ id }: { id: number }) {
           groupId={id}
           currency={group.currency}
           members={members}
-          // TODO: Connect groups API to backend (currentUser.id is a UUID string, prop expects number)
-          currentUserId={currentUser!.id as unknown as number}
+          currentUserId={currentUser!.id}
         />
       )}
     </div>
@@ -234,7 +236,7 @@ export default function GroupDetailPage({
   const { id } = use(params);
   return (
     <ProtectedRoute>
-      <GroupDetailContent id={Number(id)} />
+      <GroupDetailContent id={id} />
     </ProtectedRoute>
   );
 }

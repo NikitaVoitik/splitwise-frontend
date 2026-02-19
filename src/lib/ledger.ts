@@ -51,7 +51,7 @@ export function calculateBalances(
   users: User[],
   shares: ExpenseShare[],
 ): Balance[] {
-  const balanceMap = new Map<number, number>();
+  const balanceMap = new Map<string, number>();
 
   for (const user of users) {
     balanceMap.set(user.id, 0);

@@ -13,7 +13,7 @@ import { getGroup, getGroupMembers, getGroupBalances, removeUserFromGroup } from
 import { getUserColorClass, formatCurrency } from "@/lib/ledger";
 import { useAuth } from "@/lib/auth-context";
 
-function MembersContent({ id }: { id: number }) {
+function MembersContent({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -34,7 +34,7 @@ function MembersContent({ id }: { id: number }) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (userId: number) => removeUserFromGroup(id, userId),
+    mutationFn: (userId: string) => removeUserFromGroup(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members", id] });
       queryClient.invalidateQueries({ queryKey: ["balances", id] });
@@ -94,8 +94,7 @@ function MembersContent({ id }: { id: number }) {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{m.user.name}</span>
-                            {/* TODO: Connect groups API to backend — comparison will be false until member IDs are UUIDs */}
-                            {m.userId === (currentUser?.id as unknown as number) && (
+                            {m.userId === currentUser?.id && (
                               <Badge variant="secondary" className="text-xs">
                                 You
                               </Badge>
@@ -127,7 +126,7 @@ function MembersContent({ id }: { id: number }) {
                               ? `owes ${formatCurrency(Math.abs(balance))}`
                               : "settled up"}
                         </span>
-                        {m.userId !== (currentUser?.id as unknown as number) && (
+                        {m.userId !== currentUser?.id && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -193,7 +192,7 @@ export default function MembersPage({
   const { id } = use(params);
   return (
     <ProtectedRoute>
-      <MembersContent id={Number(id)} />
+      <MembersContent id={id} />
     </ProtectedRoute>
   );
 }

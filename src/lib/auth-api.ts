@@ -12,11 +12,20 @@ export class AuthError extends Error {
   }
 }
 
-interface AuthResponse {
-  id: string;
-  name: string;
-  email: string;
-  created_at: string;
+interface BackendAuthResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    created_at: string;
+  };
+}
+
+export interface AuthResult {
+  user: AuthUser;
+  accessToken: string;
 }
 
 async function parseErrorMessage(res: Response): Promise<string> {
@@ -32,7 +41,8 @@ async function parseErrorMessage(res: Response): Promise<string> {
 export async function loginUser(params: {
   email: string;
   password: string;
-}): Promise<AuthUser> {
+  invite_group_id?: string;
+}): Promise<AuthResult> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,15 +54,16 @@ export async function loginUser(params: {
     throw new AuthError(msg, res.status);
   }
 
-  const data: AuthResponse = await res.json();
-  return data;
+  const data: BackendAuthResponse = await res.json();
+  return { user: data.user, accessToken: data.access_token };
 }
 
 export async function registerUser(params: {
   name: string;
   email: string;
   password: string;
-}): Promise<AuthUser> {
+  invite_group_id?: string;
+}): Promise<AuthResult> {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -64,6 +75,6 @@ export async function registerUser(params: {
     throw new AuthError(msg, res.status);
   }
 
-  const data: AuthResponse = await res.json();
-  return data;
+  const data: BackendAuthResponse = await res.json();
+  return { user: data.user, accessToken: data.access_token };
 }

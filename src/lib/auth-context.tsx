@@ -11,13 +11,14 @@ import type { AuthUser } from "./types";
 import { loginUser, registerUser } from "./auth-api";
 
 const STORAGE_KEY = "fairshare_user";
+export const TOKEN_STORAGE_KEY = "fairshare_token";
 
 interface AuthState {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, inviteGroupId?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, inviteGroupId?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -40,25 +41,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const user = await loginUser({ email, password });
-    setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  const login = async (email: string, password: string, inviteGroupId?: string) => {
+    const result = await loginUser({ email, password, invite_group_id: inviteGroupId });
+    setCurrentUser(result.user);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result.user));
+    localStorage.setItem(TOKEN_STORAGE_KEY, result.accessToken);
   };
 
   const register = async (
     name: string,
     email: string,
     password: string,
+    inviteGroupId?: string,
   ) => {
-    const user = await registerUser({ name, email, password });
-    setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    const result = await registerUser({ name, email, password, invite_group_id: inviteGroupId });
+    setCurrentUser(result.user);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result.user));
+    localStorage.setItem(TOKEN_STORAGE_KEY, result.accessToken);
   };
 
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   };
 
   return (

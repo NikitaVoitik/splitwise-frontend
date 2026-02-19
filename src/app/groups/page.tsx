@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { getGroups, getGroupMembers } from "@/lib/api";
 import { ProtectedRoute } from "@/components/protected-route";
 import { GroupCard } from "@/components/group-card";
+import { CreateGroupModal } from "@/components/create-group-modal";
 import { Card, CardContent } from "@/components/ui/card";
 
-function GroupCardWithMembers({ groupId, group }: { groupId: number; group: Parameters<typeof GroupCard>[0]["group"] }) {
+function GroupCardWithMembers({ groupId, group }: { groupId: string; group: Parameters<typeof GroupCard>[0]["group"] }) {
   const { data: memberData } = useQuery({
     queryKey: ["members", groupId],
     queryFn: () => getGroupMembers(groupId),
@@ -19,12 +21,12 @@ function GroupCardWithMembers({ groupId, group }: { groupId: number; group: Para
 }
 
 function DashboardContent() {
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const { currentUser } = useAuth();
 
   const { data: groups, isLoading } = useQuery({
-    queryKey: ["groups", currentUser?.id],
-    // TODO: Connect groups API to backend (currentUser.id is a UUID string, getGroups expects number)
-    queryFn: () => getGroups(currentUser!.id as unknown as number),
+    queryKey: ["groups"],
+    queryFn: () => getGroups(),
     enabled: !!currentUser,
   });
 
@@ -45,13 +47,21 @@ function DashboardContent() {
         {groups?.map((group) => (
           <GroupCardWithMembers key={group.id} groupId={group.id} group={group} />
         ))}
-        <Card className="flex min-h-[200px] cursor-pointer items-center justify-center border-dashed transition-colors hover:bg-muted/50">
+        <Card
+          className="flex min-h-[200px] cursor-pointer items-center justify-center border-dashed transition-colors hover:bg-muted/50"
+          onClick={() => setCreateModalOpen(true)}
+        >
           <CardContent className="text-center text-muted-foreground">
             <div className="mb-2 text-3xl">+</div>
             <p className="text-sm">Create new group</p>
           </CardContent>
         </Card>
       </div>
+
+      <CreateGroupModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+      />
     </div>
   );
 }

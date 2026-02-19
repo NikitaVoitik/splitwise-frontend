@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AuthError } from "@/lib/auth-api";
@@ -24,6 +24,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteGroupId = searchParams.get("inviteGroupId") ?? undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,8 +33,8 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(name, email, password);
-      router.push("/groups");
+      await register(name, email, password, inviteGroupId);
+      router.push(inviteGroupId ? `/groups/${inviteGroupId}` : "/groups");
     } catch (err) {
       if (err instanceof AuthError) {
         setError(

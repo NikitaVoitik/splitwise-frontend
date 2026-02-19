@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   password?: string;
@@ -13,22 +13,22 @@ export interface AuthUser {
 }
 
 export interface Group {
-  id: number;
+  id: string;
   name: string;
   currency: string;
 }
 
 export interface GroupMember {
-  id: number;
-  userId: number;
-  groupId: number;
+  id: string;
+  userId: string;
+  groupId: string;
   role: string; // "admin" | "member"
 }
 
 export interface Expense {
-  id: number;
-  groupId: number;
-  createdBy: number;
+  id: string;
+  groupId: string;
+  createdBy: string;
   amount: number;
   currency: string;
   description: string;
@@ -36,10 +36,10 @@ export interface Expense {
 }
 
 export interface ExpenseShare {
-  id: number;
-  expenseId: number;
-  debtorId: number;
-  creditorId: number;
+  id: string;
+  expenseId: string;
+  debtorId: string;
+  creditorId: string;
   amountOwed: number;
   percentage: number;
   status: "pending" | "settled";
@@ -47,14 +47,14 @@ export interface ExpenseShare {
 
 // Derived types used by the frontend for display
 export interface Debt {
-  from: number;
-  to: number;
+  from: string;
+  to: string;
   amount: number;
   currency: string;
 }
 
 export interface Balance {
-  userId: number;
+  userId: string;
   amount: number;
   currency: string;
 }
