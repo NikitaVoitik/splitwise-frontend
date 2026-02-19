@@ -12,6 +12,8 @@ import { DebtGraph } from "@/components/debt-graph";
 import { BalanceChart } from "@/components/balance-chart";
 import { SettlementPlan } from "@/components/settlement-plan";
 import { AddExpenseModal } from "@/components/add-expense-modal";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   getGroup,
   getGroupExpenses,
@@ -19,6 +21,7 @@ import {
   getGroupBalances,
   getGroupSettlements,
   settleDebt,
+  updateGroup,
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/ledger";
 import { useAuth } from "@/lib/auth-context";
@@ -52,7 +55,17 @@ function GroupDetailContent({ id }: { id: string }) {
 
   const { data: settlements } = useQuery({
     queryKey: ["settlements", id],
-    queryFn: () => getGroupSettlements(id),
+    queryFn: () => getGroupSettlements(id, group?.currency),
+    enabled: !!group,
+  });
+
+  const toggleSimplification = useMutation({
+    mutationFn: (enabled: boolean) =>
+      updateGroup(id, { debt_simplification: enabled }),
+    onSuccess: (updatedGroup) => {
+      queryClient.setQueryData(["group", id], updatedGroup);
+      queryClient.invalidateQueries({ queryKey: ["settlements", id] });
+    },
   });
 
   const settleMutation = useMutation({
@@ -94,6 +107,22 @@ function GroupDetailContent({ id }: { id: string }) {
               <span className="text-sm text-muted-foreground">
                 {members.length} members
               </span>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Switch
+                id="simplify-debts"
+                checked={group.debtSimplification}
+                onCheckedChange={(checked) =>
+                  toggleSimplification.mutate(checked)
+                }
+                disabled={toggleSimplification.isPending}
+              />
+              <Label
+                htmlFor="simplify-debts"
+                className="text-sm text-muted-foreground cursor-pointer"
+              >
+                Simplify debts
+              </Label>
             </div>
           </div>
           <div className="flex gap-2">
@@ -208,6 +237,7 @@ function GroupDetailContent({ id }: { id: string }) {
               debts={settlements}
               onSettle={(debt) => settleMutation.mutate(debt)}
               isSettling={settleMutation.isPending}
+              simplified={group.debtSimplification}
             />
           )}
         </div>

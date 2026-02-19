@@ -11,6 +11,7 @@ interface SettlementPlanProps {
   debts: Debt[];
   onSettle: (debt: Debt) => void;
   isSettling?: boolean;
+  simplified?: boolean;
 }
 
 export function SettlementPlan({
@@ -18,6 +19,7 @@ export function SettlementPlan({
   debts,
   onSettle,
   isSettling,
+  simplified,
 }: SettlementPlanProps) {
   const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -26,7 +28,7 @@ export function SettlementPlan({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg">Settlement Plan</CardTitle>
         <Badge variant="outline" className="text-xs">
-          Min-Flow Optimized
+          {simplified ? "Simplified" : "Individual Debts"}
         </Badge>
       </CardHeader>
       <CardContent>

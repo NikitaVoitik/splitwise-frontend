@@ -7,7 +7,7 @@ import type {
   Group,
   GroupMember,
 } from "./types";
-import { calculateBalances, simplifyDebts } from "./ledger";
+import { calculateBalances } from "./ledger";
 import { TOKEN_STORAGE_KEY } from "./auth-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -52,6 +52,13 @@ interface BackendGroup {
   invite_code: string;
   created_by: string;
   created_at: string;
+  debt_simplification: boolean;
+}
+
+interface BackendDebtSummary {
+  debtor_id: string;
+  creditor_id: string;
+  total_owed: number;
 }
 
 interface BackendMember {
@@ -99,6 +106,7 @@ function mapGroup(bg: BackendGroup): Group {
     id: bg.id,
     name: bg.name,
     currency: bg.currency_code,
+    debtSimplification: bg.debt_simplification,
   };
 }
 
@@ -164,6 +172,17 @@ export async function getGroup(id: string): Promise<Group | undefined> {
   }
 }
 
+export async function updateGroup(
+  id: string,
+  updates: { debt_simplification?: boolean; name?: string },
+): Promise<Group> {
+  const data = await apiFetch<BackendGroup>(`/groups/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+  return mapGroup(data);
+}
+
 export async function getGroupExpenses(groupId: string, currency = "USD"): Promise<Expense[]> {
   const data = await apiFetch<BackendExpenseList>(
     `/groups/${groupId}/expenses?page=1&limit=50`,
@@ -198,9 +217,19 @@ export async function getGroupBalances(groupId: string): Promise<Balance[]> {
   return calculateBalances(memberUsers, sharesData);
 }
 
-export async function getGroupSettlements(groupId: string): Promise<Debt[]> {
-  const balances = await getGroupBalances(groupId);
-  return simplifyDebts(balances);
+export async function getGroupSettlements(
+  groupId: string,
+  currency = "USD",
+): Promise<Debt[]> {
+  const data = await apiFetch<BackendDebtSummary[]>(
+    `/groups/${groupId}/debts`,
+  );
+  return data.map((d) => ({
+    from: d.debtor_id,
+    to: d.creditor_id,
+    amount: Number(d.total_owed),
+    currency,
+  }));
 }
 
 export async function createExpense(

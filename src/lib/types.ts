@@ -16,6 +16,7 @@ export interface Group {
   id: string;
   name: string;
   currency: string;
+  debtSimplification: boolean;
 }
 
 export interface GroupMember {
